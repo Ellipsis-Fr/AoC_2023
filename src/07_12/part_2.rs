@@ -11,10 +11,10 @@ enum KindOfCamelHand {
     OnePair,
     HighCard
 }
-const ORDER_OF_CARDS: [&str; 13] = ["2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A"];
+const ORDER_OF_CARDS: [&str; 13] = ["J", "2", "3", "4", "5", "6", "7", "8", "9", "T", "Q", "K", "A"];
 
 fn main() {
-    println!("Puzzle du 07/12 Partie 1");
+    println!("Puzzle du 07/12 Partie 2");
     
     let puzzle = get_puzzle();
     let camel_games = get_poker_games(puzzle);
@@ -62,10 +62,11 @@ fn get_ordered_hands<'a>(hands: &Vec<&'a String>) -> Vec<&'a String> {
 }
 
 fn get_kind_of_hand(hand: &String) -> KindOfCamelHand {
-    let cards = hand.chars().collect::<HashSet<_>>();
+    let joker_count = hand.chars().collect::<Vec<_>>().iter().filter(|c| **c == 'J').count();
+    let cards = hand.chars().collect::<Vec<_>>().into_iter().filter(|c| *c != 'J').collect::<HashSet<_>>();
 
     match cards.len() {
-        1 => KindOfCamelHand::FiveOfAKind,
+        0 | 1 => KindOfCamelHand::FiveOfAKind,
         2 => {
             let all_card = hand.chars().collect::<Vec<_>>();
 
@@ -85,7 +86,7 @@ fn get_kind_of_hand(hand: &String) -> KindOfCamelHand {
             for card in cards {
                 let count = all_card.iter().filter(|c| **c == card).count();
                 
-                if count == 3 {
+                if count == 3 || (count != 0 && joker_count != 0) {
                     return KindOfCamelHand::ThreeOfAKind;
                 }
             }
