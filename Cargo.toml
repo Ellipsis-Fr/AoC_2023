@@ -60,5 +60,15 @@ path = "src/07_12/part_1.rs"
 name = "07_12_p2"
 path = "src/07_12/part_2.rs"
 
+[[bin]]
+name = "08_12_p1"
+path = "src/08_12/part_1.rs"
+
+[[bin]]
+name = "08_12_p2"
+path = "src/08_12/part_2.rs"
+
 [dependencies]
 itertools = "0.12.0"
+regex = "1.10.2"
+num-integer = "0.1.43"
