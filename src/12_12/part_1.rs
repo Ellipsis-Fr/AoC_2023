@@ -1,10 +1,14 @@
-use std::{cell::RefCell, collections::VecDeque, rc::Rc};
+use std::{cell::RefCell, collections::{vec_deque, VecDeque}, rc::Rc};
 
+use itertools::Itertools;
+use regex::Regex;
 use AoC_2023::text_file_reader::TextFileReader;
 
 const OPERATIONAL_SPRING_SEARCH_REGEX: &str = r"(\s|\?)+";
 const DAMAGED_SPRING_SEARCH_REGEX: &str = r"(#|\?){n}";
-// voir comment concatener des regex, et y remplacer 'n' par le bon quantificateur
+
+const OPERATIONAL_SPRING: &str = ".";
+const DAMAGED_SPRING: &str = "#";
 
 #[derive(Debug, Clone)]
 enum SpringsState {
@@ -108,8 +112,37 @@ fn main() {
     println!("Puzzle du 12/12 Partie 1");
     
     let damaged_records = get_puzzle();
-    let total_sum_of_possible_spring_arrangements = count_possible_spring_arrangements(damaged_records);
-    println!("Total sum of possible spring arrangements : {total_sum_of_possible_spring_arrangements}");
+    // let total_sum_of_possible_spring_arrangements = count_possible_spring_arrangements(damaged_records);
+    // println!("Total sum of possible spring arrangements : {total_sum_of_possible_spring_arrangements}");
+
+    // let mut a = "??? ###";
+    // let mut b = VecDeque::from([1,1,3]);
+    // assert!(can_match(a, &b));
+
+    // a = " ?? ?? ?## ";
+    // b = VecDeque::from([1,1,3]);
+    // assert!(can_match(a, &b));
+
+    // a = "?#?#?#?#?#?#?#?";
+    // b = VecDeque::from([1,3,1,6]);
+    // assert!(can_match(a, &b));
+
+    // a = "???? # #";
+    // b = VecDeque::from([4,1,1]);
+    // assert!(can_match(a, &b));
+
+    // a = "???? ###### #####";
+    // b = VecDeque::from([1,6,5]);
+    // assert!(can_match(a, &b));
+
+    // a = "?###????????";
+    // b = VecDeque::from([3,2,1]);
+    // assert!(can_match(a, &b));
+
+
+    // let a = find_possible_arrangements("??", 1);
+    // let a = find_possible_arrangements("???????", 2);
+    // dbg!(a);
 }
 
 fn get_puzzle() -> Vec<String> {
@@ -125,7 +158,7 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
         let mut iter_damaged_record = damaged_record.split_whitespace();
         let (springs_line, sizes_of_group_of_damaged_springs) = (iter_damaged_record.next().unwrap().to_owned(), iter_damaged_record.next().unwrap().to_owned());
         let springs_in_unknown_state  = springs_line.split(".").filter(|v| !v.is_empty()).collect::<Vec<_>>();
-        let list_of_sizes_of_group_of_damaged_springs = sizes_of_group_of_damaged_springs.split(",").map(|v| v.parse::<i32>().unwrap()).collect::<VecDeque<_>>();
+        let list_of_sizes_of_group_of_damaged_springs = sizes_of_group_of_damaged_springs.split(",").map(|v| v.parse::<usize>().unwrap()).collect::<VecDeque<_>>();
         
         let mut arrangement_springs = ArrangementSprings::new(format!("{}+{}", springs_line, sizes_of_group_of_damaged_springs));
         search_arrangements(
@@ -151,7 +184,7 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
 
 fn search_arrangements(
     springs_in_unknown_state: Vec<&str>,
-    mut list_of_sizes_of_group_of_damaged_springs: VecDeque<i32>,
+    mut list_of_sizes_of_group_of_damaged_springs: VecDeque<usize>,
     arrangement_springs: &ArrangementSprings,
     rc_actual_node: Rc<RefCell<Node>>,
     level: u32
@@ -168,18 +201,16 @@ fn search_arrangements(
         None => {
             if let Some(size) = list_of_sizes_of_group_of_damaged_springs.pop_front() {
                 for (index, springs_group_in_unknown_state) in springs_in_unknown_state.iter().enumerate() {
-                    if springs_group_in_unknown_state.len() < size as usize {
+                    if springs_group_in_unknown_state.len() < size {
                         continue;
                     }
 
-                    // TODO : Méthode contrôlant ce qu'il est possible de faire avec les entrées suivantes : 'springs_group_in_unknown_state' et 'size' 
-                    // TODO : et retournant un vec de tuple : [(arrangement réalisé pour ce sous groupe, reste de ce sous-groupe), ...], exemple : 
-                    // TODO : entrées : 'springs_group_in_unknown_state' = '???????' et 'size' = 2
-                    // TODO : sortie : [ ('##.', '????'), ('##.', '???'), ('##.', '??'), ('##.', '?'), ('##', '?'), ('##', '')] 
-                    // dans cet exemple les 2 dernières valeurs ne seont pas utilisé dû au contrôle de cohérence
-                    // TODO : Cette méthode procédera ainsi :
-                    // TODO : - contrôlera la cohérence de la demande
-                    // TODO : - parcourera la chaine 'springs_group_in_unknown_state' à partir de l'index 0 sur une suite de x valant 'size' et y associera le reste
+                    
+                    let possible_arrangements = find_possible_arrangements(springs_group_in_unknown_state, size);
+                    
+                    if possible_arrangements.is_empty() {
+                        continue;
+                    }
 
 
 
@@ -213,4 +244,68 @@ fn search_arrangements(
     // ! Attention ce nouveau fonctionnement n'est possible que sous réserve que l'algo d'évaluation de cohérence soit infallible,
     // ! sinon il faudra revoir ce fonctionnement et notamment y ajouter la possibilité qu'aucune correspondance ne soit trouvée
     //
+}
+
+/// Méthode contrôlant ce qu'il est possible de faire avec les entrées suivantes : 'springs_group_in_unknown_state' et 'size' 
+/// et retournant un vec de tuple : [(arrangement réalisé pour ce sous groupe, reste de ce sous-groupe), ...], exemple : 
+/// entrées : 'springs_group_in_unknown_state' = '???????' et 'size' = 2
+/// sortie : [ ('##.', '????'), ('##.', '???'), ('##.', '??'), ('##.', '?'), ('##.', ''), ('##', '')] 
+/// dans cet exemple les 2 dernières valeurs ne seront pas utilisées dû au contrôle de cohérence
+/// Cette méthode procédera ainsi :
+/// - contrôlera la cohérence de la demande
+/// - parcourera la chaine 'springs_group_in_unknown_state' à partir de l'index 0 sur une suite de x valant 'size' et y associera le reste
+fn find_possible_arrangements(springs_group_in_unknown_state: &str, size: usize) -> Vec<(String,String)> {
+    let mut possible_arrangements = Vec::new();
+
+    let springs_in_unknown_state = springs_group_in_unknown_state.chars().collect::<Vec<_>>();
+    let damaged_indexes = springs_in_unknown_state.iter().positions(|s| *s == DAMAGED_SPRING.chars().next().unwrap()).collect::<Vec<_>>();
+    
+    let mut index = 0;
+    let springs_group_len = springs_group_in_unknown_state.len();
+
+    while index + size <= springs_group_len  {
+        if damaged_indexes.iter().filter(|i| **i < index || **i > index + size).collect::<Vec<_>>().is_empty() {
+            let mut possible_springs_damaged = DAMAGED_SPRING.to_string().repeat(size);
+            
+            if index + size < springs_group_len {
+                possible_springs_damaged.push_str(OPERATIONAL_SPRING);
+            }
+
+            let remainder_springs_in_unknown_state = if index + size + 1 < springs_group_len {
+                let a = &springs_in_unknown_state[(index + size + 1)..].iter().map(|c| c.to_string()).collect::<Vec<_>>();
+                a.join("")
+            } else {
+                String::new()
+            };
+
+            possible_arrangements.push((possible_springs_damaged, remainder_springs_in_unknown_state));            
+        }
+
+        index += 1;
+    }
+
+
+
+    possible_arrangements
+}
+
+fn can_match(springs_in_unknown_state: &str, list_of_sizes_of_group_of_damaged_springs: &VecDeque<usize>) -> bool {
+    if list_of_sizes_of_group_of_damaged_springs.is_empty() {
+        false
+    } else {
+        let mut combined_regex = String::new();
+    
+        for size in list_of_sizes_of_group_of_damaged_springs {
+            let damaged_spring_search_regex = DAMAGED_SPRING_SEARCH_REGEX.replace("n", &(size.to_string()));
+
+            if combined_regex.is_empty() {
+                combined_regex = format!("{}", damaged_spring_search_regex);
+            } else {
+                combined_regex.push_str(&format!("{}{}", OPERATIONAL_SPRING_SEARCH_REGEX, damaged_spring_search_regex));
+            }
+        }
+
+        let combined_regex = Regex::new(&combined_regex).unwrap();
+        combined_regex.is_match(springs_in_unknown_state)
+    }
 }
