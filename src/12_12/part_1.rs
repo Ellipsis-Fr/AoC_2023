@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::{vec_deque, VecDeque}, rc::Rc};
+use std::{cell::RefCell, collections::VecDeque, rc::Rc};
 
 use itertools::Itertools;
 use regex::Regex;
@@ -9,22 +9,6 @@ const DAMAGED_SPRING_SEARCH_REGEX: &str = r"(#|\?){n}";
 
 const OPERATIONAL_SPRING: &str = ".";
 const DAMAGED_SPRING: &str = "#";
-
-#[derive(Debug, Clone)]
-enum SpringsState {
-    OPERATIONAL(String),
-    DAMAGED(String)
-}
-
-impl SpringsState {
-    fn new(sign: String) -> Self {
-        match sign.as_str() {
-            "." => Self::OPERATIONAL(sign),
-            "#" => Self::DAMAGED(sign),
-            _ => panic!("no other signs allowed")            
-        }
-    }
-}
 
 #[derive(Debug)]
 struct ArrangementSprings {
@@ -61,7 +45,7 @@ impl Node {
         if self.children.is_empty() {
             self.number_of_arrangements_from_here = 1;
         } else {
-            self.number_of_arrangements_from_here += self.children.iter().map(|v| v.borrow().number_of_arrangements_from_here).sum::<i32>();
+            self.number_of_arrangements_from_here = self.children.iter().map(|v| v.borrow().number_of_arrangements_from_here).sum::<i32>();
         }
     }
 
@@ -112,8 +96,8 @@ fn main() {
     println!("Puzzle du 12/12 Partie 1");
     
     let damaged_records = get_puzzle();
-    // let total_sum_of_possible_spring_arrangements = count_possible_spring_arrangements(damaged_records);
-    // println!("Total sum of possible spring arrangements : {total_sum_of_possible_spring_arrangements}");
+    let total_sum_of_possible_spring_arrangements = count_possible_spring_arrangements(damaged_records);
+    println!("Total sum of possible spring arrangements : {total_sum_of_possible_spring_arrangements}");
 
     // let mut a = "??? ###";
     // let mut b = VecDeque::from([1,1,3]);
@@ -142,6 +126,8 @@ fn main() {
 
     // let a = find_possible_arrangements("??", 1);
     // let a = find_possible_arrangements("???????", 2);
+    // let a = find_possible_arrangements("?##", 3);
+    // let a = find_possible_arrangements("?###????????", 3);
     // dbg!(a);
 }
 
@@ -160,7 +146,7 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
         let springs_in_unknown_state  = springs_line.split(".").filter(|v| !v.is_empty()).collect::<Vec<_>>();
         let list_of_sizes_of_group_of_damaged_springs = sizes_of_group_of_damaged_springs.split(",").map(|v| v.parse::<usize>().unwrap()).collect::<VecDeque<_>>();
         
-        let mut arrangement_springs = ArrangementSprings::new(format!("{}+{}", springs_line, sizes_of_group_of_damaged_springs));
+        let arrangement_springs = ArrangementSprings::new(format!("{}+{}", springs_line, sizes_of_group_of_damaged_springs));
         search_arrangements(
             springs_in_unknown_state,
             list_of_sizes_of_group_of_damaged_springs.clone(),
@@ -174,6 +160,7 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
 
         sum += {
             let mut root_borrowed_mut = arrangement_springs.root.borrow_mut();
+            // println!("{:?}", root_borrowed_mut);
             root_borrowed_mut.set_number_of_arrangements();
             root_borrowed_mut.number_of_arrangements_from_here
         };
@@ -188,62 +175,88 @@ fn search_arrangements(
     arrangement_springs: &ArrangementSprings,
     rc_actual_node: Rc<RefCell<Node>>,
     level: u32
-) -> bool {
-    let mut arrangement_found = false;
+) {
+    let damaged_record_in_study = &springs_in_unknown_state.join(",");
+    if springs_in_unknown_state.is_empty() {
+        println!("empty");
+    }
 
-    match arrangement_springs.search_for_existing_node(Some(&springs_in_unknown_state.join(",")), None, level) {
+    match arrangement_springs.search_for_existing_node(Some(damaged_record_in_study), None, level) {
         Some(existing_nodes) => {
-            arrangement_found = true;
             let mut actuel_node_borrowed_mut = rc_actual_node.borrow_mut();
             actuel_node_borrowed_mut.add_children_nodes(existing_nodes);
             actuel_node_borrowed_mut.set_number_of_arrangements();
         },
         None => {
             if let Some(size) = list_of_sizes_of_group_of_damaged_springs.pop_front() {
+                // let mut inflexible = false;
                 for (index, springs_group_in_unknown_state) in springs_in_unknown_state.iter().enumerate() {
                     if springs_group_in_unknown_state.len() < size {
                         continue;
                     }
+                    // if springs_group_in_unknown_state.contains(DAMAGED_SPRING) {
+                    //     inflexible = true;
+                    // }
 
-                    
                     let possible_arrangements = find_possible_arrangements(springs_group_in_unknown_state, size);
-                    
-                    if possible_arrangements.is_empty() {
-                        continue;
+                    if !possible_arrangements.is_empty() {
+                        possible_arrangements.into_iter().for_each(|(possible_springs_damaged, remainder_springs_in_unknown_state)| {
+                            let new_list_of_springs_in_unknown_state = if remainder_springs_in_unknown_state.is_empty() {
+                                springs_in_unknown_state[(index + 1)..].to_vec()
+                            } else {
+                                let mut vec = vec![remainder_springs_in_unknown_state.as_str()];
+                                vec.extend_from_slice(&springs_in_unknown_state[(index + 1)..]);
+                                vec
+                            };
+
+                            if can_match(&new_list_of_springs_in_unknown_state.join(" "), &list_of_sizes_of_group_of_damaged_springs) {
+                                let mut hypothesis = possible_springs_damaged;
+                                if !new_list_of_springs_in_unknown_state.is_empty() {
+                                    hypothesis += ",";
+                                    hypothesis += &new_list_of_springs_in_unknown_state.join(",");
+                                }
+
+                                match arrangement_springs.search_for_existing_node(None, Some(hypothesis.as_str()), level) {
+                                    Some(existing_nodes) => {
+                                        let mut actuel_node_borrowed_mut = rc_actual_node.borrow_mut();
+                                        actuel_node_borrowed_mut.add_children_nodes(existing_nodes);
+                                    },
+                                    None => {
+                                        let new_arrangement_node = Rc::new(RefCell::new(Node::new(damaged_record_in_study.clone(), hypothesis)));
+                                        {
+                                            let mut actuel_node_borrowed_mut = rc_actual_node.borrow_mut();
+                                            actuel_node_borrowed_mut.add_children_nodes(vec![Rc::clone(&new_arrangement_node)]);
+                                        }
+
+                                        if list_of_sizes_of_group_of_damaged_springs.is_empty() {
+                                            let mut new_arrangement_node_borrowed_mut = new_arrangement_node.borrow_mut();
+                                            new_arrangement_node_borrowed_mut.set_number_of_arrangements();
+
+                                        } else {
+                                            search_arrangements(
+                                                new_list_of_springs_in_unknown_state,
+                                                list_of_sizes_of_group_of_damaged_springs.clone(),
+                                                &arrangement_springs,
+                                                Rc::clone(&new_arrangement_node),
+                                                level + 1
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        });
+
+                        // if inflexible {
+                        //     break;
+                        // }
                     }
-
-
-
-
-                    // TODO : A partir de la précédente liste nous créons x noeud et y ajoutons à chaque fois le reste à la liste 'springs_in_unknown_state'
-                    // TODO : après y avoir substiuer le ou les 'springs_group_in_unknown_state' passé (cf. index)
-                    // TODO : Mais avant toute nouvelle relance on contrôle la cohérence du nouveau contenu de 'springs_in_unknown_state' avec la liste à jour de 'list_of_sizes_of_group_of_damaged_springs'
-
-
-
-
-    
-                    //// Donc finalement je gère la possible incohérence, via le retour bool de cette méthode appelée récursivement,
-                    //// quand 'false' me sera retourné je supprimerai ce noeud de la liste des enfants du noeud actuel
-
-                    // * Mais peut être qu'en utilisant une bonne regex je pourrais obtenir une solution me permettant de gérer les incohérences... car j'ai peur que ne pas les gérer cause des soucs de perte de temps...
-    
                 }
+
+                let mut actuel_node_borrowed_mut = rc_actual_node.borrow_mut();
+                actuel_node_borrowed_mut.set_number_of_arrangements();
             }
         }
     }
-
-    arrangement_found
-
-    //
-    // Nouveau fonctionnement :
-    // -dès que je crée un nouveau qui n'existe pas déjà je l'ajoute au noeud actuel
-    //- puis je lane à nouveau search arrangement
-    //- dès que je reviens au nouveau du noeud qui venait d'être créé et ajouté, je compte les arrangements du nouveau noeud
-    //
-    // ! Attention ce nouveau fonctionnement n'est possible que sous réserve que l'algo d'évaluation de cohérence soit infallible,
-    // ! sinon il faudra revoir ce fonctionnement et notamment y ajouter la possibilité qu'aucune correspondance ne soit trouvée
-    //
 }
 
 /// Méthode contrôlant ce qu'il est possible de faire avec les entrées suivantes : 'springs_group_in_unknown_state' et 'size' 
@@ -264,7 +277,7 @@ fn find_possible_arrangements(springs_group_in_unknown_state: &str, size: usize)
     let springs_group_len = springs_group_in_unknown_state.len();
 
     while index + size <= springs_group_len  {
-        if damaged_indexes.iter().filter(|i| **i < index || **i > index + size).collect::<Vec<_>>().is_empty() {
+        if damaged_indexes.iter().filter(|i| **i < index || **i >= index + size).collect::<Vec<_>>().is_empty() {
             let mut possible_springs_damaged = DAMAGED_SPRING.to_string().repeat(size);
             
             if index + size < springs_group_len {
@@ -290,9 +303,38 @@ fn find_possible_arrangements(springs_group_in_unknown_state: &str, size: usize)
 }
 
 fn can_match(springs_in_unknown_state: &str, list_of_sizes_of_group_of_damaged_springs: &VecDeque<usize>) -> bool {
-    if list_of_sizes_of_group_of_damaged_springs.is_empty() {
-        false
+    if springs_in_unknown_state.is_empty() {
+        if list_of_sizes_of_group_of_damaged_springs.is_empty() {
+            true
+        } else {
+            false
+        }
+    // if list_of_sizes_of_group_of_damaged_springs.is_empty() {
+    //     false
     } else {
+        // if list_of_sizes_of_group_of_damaged_springs.is_empty() {
+        //     if springs_in_unknown_state.contains(DAMAGED_SPRING) {
+        //         false
+        //     } else {
+        //         true
+        //     }
+        // } else {
+        //     let mut combined_regex = String::new();
+        
+        //     for size in list_of_sizes_of_group_of_damaged_springs {
+        //         let damaged_spring_search_regex = DAMAGED_SPRING_SEARCH_REGEX.replace("n", &(size.to_string()));
+    
+        //         if combined_regex.is_empty() {
+        //             combined_regex = format!("{}", damaged_spring_search_regex);
+        //         } else {
+        //             combined_regex.push_str(&format!("{}{}", OPERATIONAL_SPRING_SEARCH_REGEX, damaged_spring_search_regex));
+        //         }
+        //     }
+    
+        //     let combined_regex = Regex::new(&combined_regex).unwrap();
+        //     combined_regex.is_match(springs_in_unknown_state)
+        // }
+
         let mut combined_regex = String::new();
     
         for size in list_of_sizes_of_group_of_damaged_springs {
