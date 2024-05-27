@@ -42,18 +42,8 @@ impl Node {
     }
 
     pub fn set_number_of_arrangements(&mut self) {
-        println!("{}", self.hypothesis);
-
         if self.children.is_empty() {
-            let mut hypothesis = self.hypothesis.split(",").collect::<VecDeque<_>>();
-            println!("{:?}", hypothesis);
-            hypothesis.pop_front();
-            if !hypothesis.is_empty() && hypothesis.contains(&"#") {
-                println!("là");
-                self.number_of_arrangements_from_here = 0;
-            } else {
-                self.number_of_arrangements_from_here = 1;
-            }
+            self.number_of_arrangements_from_here = 1;
         } else {
             self.number_of_arrangements_from_here = self.children.iter().map(|v| v.borrow().number_of_arrangements_from_here).sum::<i128>();
         }
@@ -137,8 +127,8 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i128 {
                 springs_line.push_str(&UNKNOWN_SPRINGS);
                 sizes_of_group_of_damaged_springs.push_str(",");
             }
-        }        
-        
+        } 
+
         let springs_in_unknown_state  = springs_line.split(".").filter(|v| !v.is_empty()).collect::<Vec<_>>();
         let list_of_sizes_of_group_of_damaged_springs = sizes_of_group_of_damaged_springs.split(",").map(|v| v.parse::<usize>().unwrap()).collect::<VecDeque<_>>();
         
@@ -155,7 +145,6 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i128 {
         sum += {
             let mut root_borrowed_mut = arrangement_springs.root.borrow_mut();
             root_borrowed_mut.set_number_of_arrangements();
-            println!("{} - {}", springs_line, root_borrowed_mut.number_of_arrangements_from_here);
             root_borrowed_mut.number_of_arrangements_from_here
         };
     }
@@ -186,6 +175,9 @@ fn search_arrangements(
                 let mut inflexible = false;
                 for (index, springs_group_in_unknown_state) in springs_in_unknown_state.iter().enumerate() {
                     if springs_group_in_unknown_state.len() < size {
+                        if springs_group_in_unknown_state.contains(DAMAGED_SPRINGS) {
+                            break;
+                        }
                         continue;
                     }
                     

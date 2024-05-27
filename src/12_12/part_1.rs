@@ -42,8 +42,6 @@ impl Node {
     }
 
     pub fn set_number_of_arrangements(&mut self) {
-        println!("{}", self.hypothesis);
-
         if self.children.is_empty() {
             self.number_of_arrangements_from_here = 1;
         } else {
@@ -159,6 +157,9 @@ fn search_arrangements(
                 let mut inflexible = false;
                 for (index, springs_group_in_unknown_state) in springs_in_unknown_state.iter().enumerate() {
                     if springs_group_in_unknown_state.len() < size {
+                        if springs_group_in_unknown_state.contains(DAMAGED_SPRINGS) {
+                            break;
+                        }
                         continue;
                     }
                     
