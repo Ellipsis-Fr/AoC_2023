@@ -33,7 +33,7 @@ struct Node {
     children: Vec<Rc<RefCell<Node>>>,
     damaged_record_in_study: String, // nc
     hypothesis : String, // np
-    number_of_arrangements_from_here: i32
+    number_of_arrangements_from_here: i128
 }
 
 impl Node {
@@ -45,9 +45,17 @@ impl Node {
         println!("{}", self.hypothesis);
 
         if self.children.is_empty() {
-            self.number_of_arrangements_from_here = 1;
+            let mut hypothesis = self.hypothesis.split(",").collect::<VecDeque<_>>();
+            println!("{:?}", hypothesis);
+            hypothesis.pop_front();
+            if !hypothesis.is_empty() && hypothesis.contains(&"#") {
+                println!("là");
+                self.number_of_arrangements_from_here = 0;
+            } else {
+                self.number_of_arrangements_from_here = 1;
+            }
         } else {
-            self.number_of_arrangements_from_here = self.children.iter().map(|v| v.borrow().number_of_arrangements_from_here).sum::<i32>();
+            self.number_of_arrangements_from_here = self.children.iter().map(|v| v.borrow().number_of_arrangements_from_here).sum::<i128>();
         }
     }
 
@@ -92,7 +100,7 @@ impl Node {
 
 
 fn main() {
-    println!("Puzzle du 12/12 Partie 1");
+    println!("Puzzle du 12/12 Partie 2");
     let now = Instant::now();
     
     let damaged_records = get_puzzle();
@@ -107,12 +115,30 @@ fn get_puzzle() -> Vec<String> {
     text_file_reader.get_content_as_list_split_by_newline()
 }
 
-fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
+fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i128 {
     let mut sum = 0;
+    const UNFOLD_RECORD: usize = 5;
     
     for damaged_record in damaged_records {
         let mut iter_damaged_record = damaged_record.split_whitespace();
-        let (springs_line, sizes_of_group_of_damaged_springs) = (iter_damaged_record.next().unwrap().to_owned(), iter_damaged_record.next().unwrap().to_owned());
+        let (folded_springs_line, folded_sizes_of_group_of_damaged_springs) = (iter_damaged_record.next().unwrap().to_owned(), iter_damaged_record.next().unwrap().to_owned());
+        
+        let mut springs_line = String::new();
+        let mut sizes_of_group_of_damaged_springs = String::new();
+
+        let mut unfolding = 0;
+        while unfolding < UNFOLD_RECORD {
+            unfolding += 1;
+
+            springs_line.push_str(&folded_springs_line);
+            sizes_of_group_of_damaged_springs.push_str(&folded_sizes_of_group_of_damaged_springs);
+
+            if unfolding < UNFOLD_RECORD {
+                springs_line.push_str(&UNKNOWN_SPRINGS);
+                sizes_of_group_of_damaged_springs.push_str(",");
+            }
+        }        
+        
         let springs_in_unknown_state  = springs_line.split(".").filter(|v| !v.is_empty()).collect::<Vec<_>>();
         let list_of_sizes_of_group_of_damaged_springs = sizes_of_group_of_damaged_springs.split(",").map(|v| v.parse::<usize>().unwrap()).collect::<VecDeque<_>>();
         
@@ -129,6 +155,7 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
         sum += {
             let mut root_borrowed_mut = arrangement_springs.root.borrow_mut();
             root_borrowed_mut.set_number_of_arrangements();
+            println!("{} - {}", springs_line, root_borrowed_mut.number_of_arrangements_from_here);
             root_borrowed_mut.number_of_arrangements_from_here
         };
     }
