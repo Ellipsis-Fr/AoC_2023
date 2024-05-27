@@ -81,9 +81,6 @@ impl Node {
             }
         }
 
-
-
-
         if existing_nodes.is_empty() {
             None
         } else {
@@ -101,51 +98,6 @@ fn main() {
     let total_sum_of_possible_spring_arrangements = count_possible_spring_arrangements(damaged_records);
     println!("Total sum of possible spring arrangements : {total_sum_of_possible_spring_arrangements}");
     println!("took: {:?}", now.elapsed());
-
-    // valeurs déjà testées : 5308, 7782, 7767, 7772, 7770, 7709, 7693, 7655
-
-    // let mut a = "??? ###";
-    // let mut b = VecDeque::from([1,1,3]);
-    // assert!(can_match(a, &b));
-
-    // a = " ?? ?? ?## ";
-    // b = VecDeque::from([1,1,3]);
-    // assert!(can_match(a, &b));
-
-    // a = "?#?#?#?#?#?#?#?";
-    // b = VecDeque::from([1,3,1,6]);
-    // assert!(can_match(a, &b));
-
-    // a = "???? # #";
-    // b = VecDeque::from([4,1,1]);
-    // assert!(can_match(a, &b));
-
-    // a = "???? ###### #####";
-    // b = VecDeque::from([1,6,5]);
-    // assert!(can_match(a, &b));
-
-    // a = "?###????????";
-    // b = VecDeque::from([3,2,1]);
-    // assert!(can_match(a, &b));
-
-    // let a = "# ??";
-    // let b = VecDeque::from([2]);
-    // assert!(can_match(a, &b));
-
-    // let a = vec!["?#", "??#??"];
-    // let b = VecDeque::from([2]);
-    // assert!(!can_match(&a, &b));
-
-    // let a = vec!["?#", "#???#"];
-    // let b = VecDeque::from([2,4]);
-    // assert!(!can_match(&a, &b));
-
-
-    // let a = find_possible_arrangements("??", 1);
-    // let a = find_possible_arrangements("???????", 2);
-    // let a = find_possible_arrangements("?##", 3);
-    // let a = find_possible_arrangements("?###????????", 3);
-    // dbg!(a);
 }
 
 fn get_puzzle() -> Vec<String> {
@@ -171,15 +123,11 @@ fn count_possible_spring_arrangements(damaged_records: Vec<String>) -> i32 {
             Rc::clone(&arrangement_springs.root),
             0
         );
-        // let a = arrangement_springs.root;
-        // println!("{:?}", arrangement_springs.root);
 
 
         sum += {
             let mut root_borrowed_mut = arrangement_springs.root.borrow_mut();
-            // println!("{:?}", root_borrowed_mut);
             root_borrowed_mut.set_number_of_arrangements();
-            println!("{} - {}", springs_line, root_borrowed_mut.number_of_arrangements_from_here);
             root_borrowed_mut.number_of_arrangements_from_here
         };
     }
@@ -196,11 +144,6 @@ fn search_arrangements(
 ) {
     assert!(!springs_in_unknown_state.is_empty());
     assert!(!list_of_sizes_of_group_of_damaged_springs.is_empty());
-
-    {
-        let actuel_node_borrowed_mut = rc_actual_node.borrow_mut();
-        println!("{:?}   ------  {:?}", &actuel_node_borrowed_mut.hypothesis, list_of_sizes_of_group_of_damaged_springs);
-    }
 
     let damaged_record_in_study = &springs_in_unknown_state.join(",");
 
@@ -221,7 +164,6 @@ fn search_arrangements(
                     if springs_group_in_unknown_state.contains(DAMAGED_SPRINGS) {
                         inflexible = true;
                     } else if springs_in_unknown_state[(index + 1)..].iter().filter(|s| s.contains(DAMAGED_SPRINGS)).map(|s| s.chars().filter(|c| *c == DAMAGED_SPRINGS.chars().next().unwrap()).count()).sum::<usize>() > list_of_sizes_of_group_of_damaged_springs.iter().sum() {
-                        // println!("là");
                         continue;
                     }
 
@@ -284,14 +226,6 @@ fn search_arrangements(
             }
         }
     }
-
-    println!();
-    println!("==============================================================");
-    println!("==============================================================");
-    println!("==============================================================");
-    println!();
-    println!();
-
 }
 
 /// Méthode contrôlant ce qu'il est possible de faire avec les entrées suivantes : 'springs_group_in_unknown_state' et 'size' 
@@ -307,14 +241,11 @@ fn find_possible_arrangements(springs_group_in_unknown_state: &str, size: usize,
 
     let springs_in_unknown_state = springs_group_in_unknown_state.chars().collect::<Vec<_>>();
     let damaged_indexes = springs_in_unknown_state.iter().positions(|s| *s == DAMAGED_SPRINGS.chars().next().unwrap()).collect::<Vec<_>>();
-    // println!("{:?}", springs_in_unknown_state);
-    // println!("{:?}", damaged_indexes);
     
     let mut index = 0;
     let springs_group_len = springs_group_in_unknown_state.len();
 
     while index + size <= springs_group_len  {
-        // println!("{}", index + size);
         if damaged_indexes.iter().filter(|i| **i < index || **i == index + size).collect::<Vec<_>>().is_empty() {
             let mut possible_springs_damaged = DAMAGED_SPRINGS.to_string().repeat(size);
             
@@ -334,16 +265,13 @@ fn find_possible_arrangements(springs_group_in_unknown_state: &str, size: usize,
                     index += 1;
                     continue;
                 }
-                // let next_size = next_size.unwrap();
-                // let count_unknown_springs = remainder_springs_in_unknown_state.chars().filter(|c| *c == UNKNOWN_SPRINGS.chars().next().unwrap()).count();
-                // let count_damaged_springs = remainder_springs_in_unknown_state.chars().filter(|c| *c == DAMAGED_SPRINGS.chars().next().unwrap()).count();
+
                 if remainder_springs_in_unknown_state.len() < *next_size.unwrap() {
                     index += 1;
                     continue;
                 }
             }
 
-            // println!("{} {}", possible_springs_damaged, remainder_springs_in_unknown_state);
             possible_arrangements.push((possible_springs_damaged, remainder_springs_in_unknown_state));            
         }
 
@@ -363,58 +291,24 @@ fn can_match(list_of_springs_in_unknown_state: &Vec<&str>, list_of_sizes_of_grou
             false
         }
     } else {
-        let group_of_springs_damaged = list_of_springs_in_unknown_state.iter().filter(|springs| springs.contains(DAMAGED_SPRINGS)).collect::<Vec<_>>();
-        let count_group_of_springs_damaged = group_of_springs_damaged.len();
-        if count_group_of_springs_damaged > list_of_sizes_of_group_of_damaged_springs.len() {
-            false
-        } else if list_of_sizes_of_group_of_damaged_springs.is_empty() {
-            true
-        } else {
-            // println!("{}", springs_in_unknown_state);
+        let springs_in_unknown_state = list_of_springs_in_unknown_state.join(" ");
 
-            let springs_in_unknown_state = list_of_springs_in_unknown_state.join(" ");
-
-            let mut combined_regex = String::new();
-        
-            for size in list_of_sizes_of_group_of_damaged_springs {
-                let damaged_spring_search_regex = DAMAGED_SPRING_SEARCH_REGEX.replace("n", &(size.to_string()));
+        let mut combined_regex = String::new();
     
-                if combined_regex.is_empty() {
-                    combined_regex = format!("{}", damaged_spring_search_regex);
-                } else {
-                    combined_regex.push_str(&format!("{}{}", OPERATIONAL_SPRING_SEARCH_REGEX, damaged_spring_search_regex));
-                }
+        for size in list_of_sizes_of_group_of_damaged_springs {
+            let damaged_spring_search_regex = DAMAGED_SPRING_SEARCH_REGEX.replace("n", &(size.to_string()));
+
+            if combined_regex.is_empty() {
+                combined_regex = format!("{}", damaged_spring_search_regex);
+            } else {
+                combined_regex.push_str(&format!("{}{}", OPERATIONAL_SPRING_SEARCH_REGEX, damaged_spring_search_regex));
             }
-
-            // println!("{:?}", combined_regex);
-    
-            let combined_regex = Regex::new(&combined_regex).unwrap();
-            let mut is_match = combined_regex.is_match(&springs_in_unknown_state);
-
-            if count_group_of_springs_damaged == list_of_sizes_of_group_of_damaged_springs.len() {
-                let merged_vec = group_of_springs_damaged.iter().zip(list_of_sizes_of_group_of_damaged_springs.iter()).collect::<Vec<_>>();
-                // println!("{:?}", list_of_sizes_of_group_of_damaged_springs);
-                // println!("{:?}", merged_vec);
-                for (springs_damaged, size) in merged_vec {
-                    if springs_damaged.trim_matches('?').len() > *size {
-                        is_match = false;
-                        break;
-                    }
-                }
-            } 
-            // else {
-            //     let index_list_of_sizes = 0;
-
-            //     for springs_damaged in group_of_springs_damaged {
-            //         if springs_damaged.trim_matches('?').len() > *size {
-            //             is_match = false;
-            //             break;
-            //         }
-            //     }
-            // }
-
-            is_match
-
         }
+        
+        combined_regex.push_str("[^#]*$");
+
+
+        let combined_regex = Regex::new(&combined_regex).unwrap();
+        combined_regex.is_match(&springs_in_unknown_state) && !combined_regex.replace_all(&springs_in_unknown_state, ".").contains("#")
     }
 }
