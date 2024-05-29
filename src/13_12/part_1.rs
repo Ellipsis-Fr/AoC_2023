@@ -1,4 +1,4 @@
-use std::{ops::{Range, RangeInclusive}, time::Instant};
+use std::{collections::VecDeque, ops::RangeInclusive, time::Instant};
 
 use AoC_2023::text_file_reader::TextFileReader;
 
@@ -7,8 +7,14 @@ fn main() {
     let now = Instant::now();
     
     let patterns = get_patterns();
+    // for p in patterns {
+        
+    //     let a = rotate_90d(p);
+    //     print(a);
+    //     println!();
+    // }
     let total = get_total(patterns);
-    println!("Total of summarizing all notes{total}");
+    println!("Total of summarizing all notes {total}");
     println!("took: {:?}", now.elapsed());
 }
 
@@ -40,19 +46,26 @@ fn get_total(patterns: Vec<Vec<String>>) -> usize {
     let mut total = 0;
 
     'main: for mut pattern in patterns {
+        let pattern_in_error = pattern.clone();
         for v in 0..2 {
-            for center in get_range_middle(pattern.len()) {
-                if is_center(pattern.clone()) {
+            // for center in get_range_middle(pattern.len()) {
+            for center in 0..pattern.len() {
+                if is_center(pattern.clone(), center) {
+                    // println!("center : {center}");
                     if v == 0 {
-                        total += center * 100;
+                        total += (center + 1) * 100;
                     } else {
-                        total += center;
+                        total += center + 1;
                     }
                     continue 'main;
                 }
             }
             pattern = rotate_90d(pattern);
         }
+        print(pattern_in_error);
+        println!();
+        println!();
+        print(pattern);
         panic!("no mirror found");
     }
 
@@ -69,10 +82,60 @@ fn get_range_middle(len: usize) -> RangeInclusive<usize> {
     }
 }
 
-fn is_center(pattern: Vec<String>) -> bool {
-    todo!()
+fn is_center(pattern: Vec<String>, center: usize) -> bool {
+    let mut center_1 = center;
+    let mut center_2 = center + 1;
+    
+    loop {
+        match pattern.get(center_1) {
+            None => break,
+            Some(relief_1) => {
+                match pattern.get(center_2) {
+                    None => break,
+                    Some(relief_2) => {
+                        if relief_1 != relief_2 {
+                            return false;
+                        }
+                        if center_1 == 0 {
+                            break;
+                        }
+                    }                    
+                }
+            }
+        }
+
+        if let Some(value) = center_1.checked_sub(1) {
+            center_1 = value;
+        } else {
+            break;
+        }
+        center_2 += 1;
+    }
+    true
 }
 
 fn rotate_90d(pattern: Vec<String>) -> Vec<String> {
-    todo!()
+    let pattern_chars = pattern.into_iter().map(|p| p.chars().collect::<Vec<_>>()).collect::<Vec<_>>();
+    let mut pattern_chars_rotated = Vec::new();
+
+    for chars in pattern_chars {
+        for (index, char) in chars.into_iter().enumerate() {
+            match pattern_chars_rotated.get_mut(index) {
+                None => {
+                    let mut new_order = VecDeque::new();
+                    new_order.push_front(char);
+                    pattern_chars_rotated.push(new_order);
+                },
+                Some(new_order) => new_order.push_front(char)
+            }
+        }
+    }
+
+    pattern_chars_rotated.into_iter().map(|c| c.into_iter().collect::<String>()).collect()
+}
+
+fn print(pattern: Vec<String>) {
+    pattern.iter().for_each(|p| {
+        println!("{p}");
+    });
 }
