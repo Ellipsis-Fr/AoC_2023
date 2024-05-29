@@ -7,12 +7,6 @@ fn main() {
     let now = Instant::now();
     
     let patterns = get_patterns();
-    // for p in patterns {
-        
-    //     let a = rotate_90d(p);
-    //     print(a);
-    //     println!();
-    // }
     let total = get_total(patterns);
     println!("Total of summarizing all notes {total}");
     println!("took: {:?}", now.elapsed());
@@ -45,59 +39,49 @@ fn get_patterns() -> Vec<Vec<String>> {
 fn get_total(patterns: Vec<Vec<String>>) -> usize {
     let mut total = 0;
 
-    'main: for mut pattern in patterns {
-        let pattern_in_error = pattern.clone();
+    for mut pattern in patterns {
+        let mut index_max = 0;
         for v in 0..2 {
-            // for center in get_range_middle(pattern.len()) {
-            for center in 0..pattern.len() {
-                if is_center(pattern.clone(), center) {
-                    // println!("center : {center}");
-                    if v == 0 {
-                        total += (center + 1) * 100;
-                    } else {
-                        total += center + 1;
+            let mut max = 0;
+            for index in 0..(pattern.len() - 1) {
+                if is_reflected(pattern.clone(), index) {
+                    if index >= max {
+                        max = index + 1;
                     }
-                    continue 'main;
+                }
+            }
+
+            if v == 0 {
+                index_max = max;
+            } else {
+                if max <= index_max {
+                    total += index_max * 100;
+                } else {
+                    total += max;
                 }
             }
             pattern = rotate_90d(pattern);
         }
-        print(pattern_in_error);
-        println!();
-        println!();
-        print(pattern);
-        panic!("no mirror found");
     }
 
     total
 }
 
-fn get_range_middle(len: usize) -> RangeInclusive<usize> {
-    let middle = len / 2;
-
-    if len % 2 == 0 {
-        (middle - 1)..=middle
-    } else {
-        (middle - 1)..=(middle + 1)
-    }
-}
-
-fn is_center(pattern: Vec<String>, center: usize) -> bool {
+fn is_reflected(pattern: Vec<String>, center: usize) -> bool {
+    let mut is_reflected = false;
     let mut center_1 = center;
     let mut center_2 = center + 1;
     
+    let mut count = 0;
     loop {
         match pattern.get(center_1) {
-            None => break,
+            None => unreachable!(),
             Some(relief_1) => {
                 match pattern.get(center_2) {
                     None => break,
                     Some(relief_2) => {
                         if relief_1 != relief_2 {
                             return false;
-                        }
-                        if center_1 == 0 {
-                            break;
                         }
                     }                    
                 }
