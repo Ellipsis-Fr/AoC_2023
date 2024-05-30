@@ -1,4 +1,4 @@
-use std::{collections::VecDeque, ops::RangeInclusive, time::Instant};
+use std::{collections::VecDeque, time::Instant};
 
 use AoC_2023::text_file_reader::TextFileReader;
 
@@ -39,8 +39,7 @@ fn get_patterns() -> Vec<Vec<String>> {
 fn get_total(patterns: Vec<Vec<String>>) -> usize {
     let mut total = 0;
 
-    for mut pattern in patterns {
-        let mut index_max = 0;
+    'main: for mut pattern in patterns {
         for v in 0..2 {
             let mut max = 0;
             for index in 0..(pattern.len() - 1) {
@@ -51,28 +50,23 @@ fn get_total(patterns: Vec<Vec<String>>) -> usize {
                 }
             }
 
-            if v == 0 {
-                index_max = max;
+            if max != 0 {
+                total += if v == 0 { max * 100 } else { max };
+                continue 'main;
             } else {
-                if max <= index_max {
-                    total += index_max * 100;
-                } else {
-                    total += max;
-                }
+                pattern = rotate_90d(pattern);
             }
-            pattern = rotate_90d(pattern);
         }
+        unreachable!();
     }
 
     total
 }
 
 fn is_reflected(pattern: Vec<String>, center: usize) -> bool {
-    let mut is_reflected = false;
     let mut center_1 = center;
     let mut center_2 = center + 1;
     
-    let mut count = 0;
     loop {
         match pattern.get(center_1) {
             None => unreachable!(),
