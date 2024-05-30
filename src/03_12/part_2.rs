@@ -62,7 +62,7 @@ fn extract_data_from_each_row(p: String) -> Vec<(String, (usize, usize))> {
 }
 
 fn get_gear_ratio(row: usize, data: &Vec<Vec<(String, (usize, usize))>>) -> u32 {
-    let mut gear_ratios = Vec::new();;
+    let mut gear_ratios = Vec::new();
 
     let position_of_gears = data.get(row).unwrap().iter().filter(|x| x.0 == "*").map(|(_, (x, _))| x).collect::<Vec<_>>();
 
