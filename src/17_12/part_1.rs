@@ -4,11 +4,12 @@ use num::pow;
 use num_integer::sqrt;
 use AoC_2023::text_file_reader::TextFileReader;
 
-type Cache = HashMap<(usize, usize), u32>;
+type Cache_Before = HashMap<(usize, usize, Direction, u8), u32>;
+type Cache_Next = HashMap<(usize, usize), HashMap<Direction, HashMap<u8, u32>>>;
 
 const MAXIMUM_NUMBER_OF_STEPS_IN_SAME_DIRECTION: u8 = 3;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Direction {
 	Left(char),
 	Right(char),
@@ -79,7 +80,8 @@ fn solve_puzzle(puzzle: Vec<String>) -> u32 {
     let map = puzzle.into_iter().map(|line| line.chars().collect::<Vec<_>>()).collect::<Vec<_>>();
     let destination = get_destination(&map);
     
-    let cache = HashMap::new();
+    let cache_before = Cache_Before::new();
+    let cache_next = Cache_Next::new();
     let block_visited = HashSet::new();
     
     let least_heat_loss_known = get_least_heat_loss_quickly(
@@ -99,7 +101,8 @@ fn solve_puzzle(puzzle: Vec<String>) -> u32 {
         2,
         0,
         Direction::new('>'),
-        Arc::new(Mutex::new(cache)),
+        Arc::new(Mutex::new(cache_before)),
+        Arc::new(Mutex::new(cache_next)),
         block_visited,
         Arc::clone(&arc_least_heat_loss_known)
     );
@@ -152,26 +155,34 @@ fn cross_city(
     number_of_steps_in_same_direction: u8,
     lost_heat: u32,
     actual_direction: Direction,
-    arc_cache: Arc<Mutex<Cache>>,
+    arc_cache_before: Arc<Mutex<Cache_Before>>,
+    arc_cache_next: Arc<Mutex<Cache_Next>>,
     mut block_visited: HashSet<(usize, usize)>,
     arc_least_heat_loss_known: Arc<Mutex<u32>>
-) {
+) -> u32 {
     if !block_visited.insert(position.clone()) {
-        return;
+        return u32::MAX;
     }
 
-    if !continue_crossing(position, lost_heat, Arc::clone(&arc_cache)) {
-        return;
+    if !continue_crossing(position, number_of_steps_in_same_direction, lost_heat, &actual_direction, Arc::clone(&arc_cache_before)) {
+        return u32::MAX;
     }
 
     // dbg!(&position);
     let lost_heat = lost_heat + (map[position.0][position.1]).to_digit(10).unwrap();
     if lost_too_much_heat(lost_heat, destination, position, Arc::clone(&arc_least_heat_loss_known)) {
-        println!("lost heat too much {lost_heat} at {:?}", position);
-        return;
+        // println!("lost heat too much {lost_heat} at {:?}", position);
+        return u32::MAX;
+    }
+
+    if position == (1, 5) && lost_heat == 20 {
+        println!("Lost heatà (1,5) : {lost_heat}");
     }
 
     if position == destination {
+        // if position == (12, 11) {
+        //     println!("Lost heatà (12,11) : {lost_heat}");
+        // }
         println!();
         println!("lost heat : {lost_heat}");
         print_map(&map);
@@ -181,8 +192,10 @@ fn cross_city(
         println!("least lost heat = {lost_heat}");
         let mut lock_least_heat_loss_known = arc_least_heat_loss_known.lock().unwrap();
         let borrow_mut_least_heat_loss_known = lock_least_heat_loss_known.borrow_mut();
-        **borrow_mut_least_heat_loss_known = lost_heat;
-        return;
+        if **borrow_mut_least_heat_loss_known > lost_heat {
+            **borrow_mut_least_heat_loss_known = lost_heat;
+        }
+        return lost_heat;
     } 
 
     map[position.0][position.1] = actual_direction.get_char();
@@ -191,73 +204,149 @@ fn cross_city(
     let next_possible_positions = get_next_possible_positions(&map, position, &mut next_possible_directions);
     let next_possible_positions_and_directions = next_possible_positions.into_iter().zip(next_possible_directions.into_iter()).collect::<Vec<_>>();
 
-    let mut handles = vec![];
+    let mut lost_heat_here = u32::MAX;
+    // let mut handles = vec![];
 
     for (next_position, next_direction) in next_possible_positions_and_directions {
-        let map = map.clone();
-        let arc_cache_cloned = Arc::clone(&arc_cache);
-        let block_visited_cloned = block_visited.clone();
-        let arc_least_heat_loss_known_cloned = Arc::clone(&arc_least_heat_loss_known);
         let number_of_steps_in_same_direction = if next_direction != actual_direction { 1 } else { number_of_steps_in_same_direction + 1 };
 
-        // cross_city(
-        //     map,
-        //     destination,
-        //     next_position,
-        //     number_of_steps_in_same_direction,
-        //     lost_heat,
-        //     next_direction,
-        //     arc_cache_cloned,
-        //     block_visited_cloned,
-        //     arc_least_heat_loss_known_cloned
-        // );
+        let mut lock_cache = arc_cache_next.lock().unwrap();
+        let borrow_mut_cache = lock_cache.borrow_mut();
+
+        // if position == (12, 11) {
+        //     println!("Lost heatà (12,11) : {lost_heat}");
+        // }
+
+        if let Some(lost_heat_by_direction) = borrow_mut_cache.get_mut(&position) {
+            if let Some(lost_heat_by_number_of_steps) = lost_heat_by_direction.get_mut(&next_direction) {
+                if let Some(lost_heat_next_known) = lost_heat_by_number_of_steps.get_mut(&number_of_steps_in_same_direction) {
+                    let final_lost_heat = *lost_heat_next_known + lost_heat;
+                    if final_lost_heat < lost_heat_here {
+                        lost_heat_here = final_lost_heat;
+                    }
+
+                    let mut lock_least_heat_loss_known = arc_least_heat_loss_known.lock().unwrap();
+                    let borrow_mut_least_heat_loss_known = lock_least_heat_loss_known.borrow_mut();
+                    if final_lost_heat < **borrow_mut_least_heat_loss_known {
+                        **borrow_mut_least_heat_loss_known = final_lost_heat;
+                    }
+
+                    continue;
+                }
+            }
+        }
+        
+        drop(lock_cache);
 
 
-        let handle = thread::spawn(move || {
-            cross_city(
-                map,
-                destination,
-                next_position,
-                number_of_steps_in_same_direction,
-                lost_heat,
-                next_direction,
-                arc_cache_cloned,
-                block_visited_cloned,
-                arc_least_heat_loss_known_cloned
-            );
-        });
-        handles.push(handle);
+        let map = map.clone();
+        let arc_cache_before_cloned = Arc::clone(&arc_cache_before);
+        let arc_cache_next_cloned = Arc::clone(&arc_cache_next);
+        let block_visited_cloned = block_visited.clone();
+        let arc_least_heat_loss_known_cloned = Arc::clone(&arc_least_heat_loss_known);
+
+        let final_lost_heat = cross_city(
+            map,
+            destination,
+            next_position,
+            number_of_steps_in_same_direction,
+            lost_heat,
+            next_direction.clone(),
+            arc_cache_before_cloned,
+            arc_cache_next_cloned,
+            block_visited_cloned,
+            arc_least_heat_loss_known_cloned
+        );
+
+        if final_lost_heat != u32::MAX {
+            if final_lost_heat < lost_heat_here {
+                lost_heat_here = final_lost_heat;
+            }
+            let mut lock_cache = arc_cache_next.lock().unwrap();
+            let borrow_mut_cache = lock_cache.borrow_mut();
+            
+            let new_lost_heat_next = final_lost_heat - lost_heat;
+
+            match borrow_mut_cache.get_mut(&position) {
+                Some(lost_heat_by_direction) => {
+                    match lost_heat_by_direction.get_mut(&next_direction) {
+                        Some(lost_heat_by_number_of_steps) => {
+                            match lost_heat_by_number_of_steps.get_mut(&number_of_steps_in_same_direction) {
+                                Some(lost_heat_next_known) => {
+                                    if new_lost_heat_next < *lost_heat_next_known {
+                                        *lost_heat_next_known = new_lost_heat_next;
+                                    }
+                                },
+                                None => {
+                                    lost_heat_by_number_of_steps.insert(number_of_steps_in_same_direction, new_lost_heat_next);
+                                },
+                            }
+                        },
+                        None => {
+                            let lost_heat_by_number_of_steps = HashMap::from([(number_of_steps_in_same_direction, new_lost_heat_next)]);
+                            lost_heat_by_direction.insert(next_direction, lost_heat_by_number_of_steps);
+                        },
+                    }
+                },
+                None => {
+                    if position == (1, 5) {
+                        println!("Lost heatà (1,5) : {lost_heat}");
+                    }
+
+                    let lost_heat_by_number_of_steps = HashMap::from([(number_of_steps_in_same_direction, new_lost_heat_next)]);
+                    let lost_heat_by_direction = HashMap::from([(next_direction, lost_heat_by_number_of_steps)]);
+                    borrow_mut_cache.insert(position, lost_heat_by_direction);
+                }
+            }
+        }
+
+
+        // let handle = thread::spawn(move || {
+        //     cross_city(
+        //         map,
+        //         destination,
+        //         next_position,
+        //         number_of_steps_in_same_direction,
+        //         lost_heat,
+        //         next_direction,
+        //         arc_cache_before_cloned,
+        //         block_visited_cloned,
+        //         arc_least_heat_loss_known_cloned
+        //     );
+        // });
+        // handles.push(handle);
     }
+    
+    // for handle in handles {
+    //     handle.join().unwrap();
+    // }
 
+    lost_heat_here
 
-    for handle in handles {
-        handle.join().unwrap();
-    }
 }
 
 fn continue_crossing(
     position: (usize, usize),
+    number_of_steps_in_same_direction: u8,
     lost_heat: u32,
-    arc_cache: Arc<Mutex<Cache>>
+    actual_direction: &Direction,
+    arc_cache_before: Arc<Mutex<Cache_Before>>
 ) -> bool {
-    let mut lock_cache = arc_cache.lock().unwrap();
+    let mut lock_cache = arc_cache_before.lock().unwrap();
     let borrow_mut_cache = lock_cache.borrow_mut();
+    let key = (position.0, position.1, actual_direction.clone(), number_of_steps_in_same_direction);
 
-    match borrow_mut_cache.get_mut(&position) {
+    match borrow_mut_cache.get_mut(&key) {
         Some(actual_lost_heat) => {
             if *actual_lost_heat < lost_heat {
-                if *actual_lost_heat < lost_heat.checked_sub(5).unwrap_or(lost_heat) {
-                    false
-                } else {
-                    true
-                }
+                false
             } else {
                 *actual_lost_heat = lost_heat;
                 true
             }
         },
         None => {
-            borrow_mut_cache.insert(position, lost_heat);
+            borrow_mut_cache.insert(key, lost_heat);
             true
         }
     }
@@ -268,7 +357,7 @@ fn lost_too_much_heat(lost_heat: u32, destination: (usize, usize), position: (us
     let borrow_least_heat_loss_known = lock_least_heat_loss_known.borrow();
 
     if lost_heat >= **borrow_least_heat_loss_known || lost_heat + get_manhattan_distance(destination, position) as u32 >= **borrow_least_heat_loss_known {
-        println!("{borrow_least_heat_loss_known}");
+        // println!("{borrow_least_heat_loss_known}");
         true
     } else { false }
 }
